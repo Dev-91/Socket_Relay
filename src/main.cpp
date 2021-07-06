@@ -9,10 +9,10 @@
 #define SWITCH 12
 #define RELAY 13
 
-char ssid[20] = "WBML_229_2.4G";
-char pass[20] = "wbml0229";
-char host[20] = "192.168.0.9";
-char dev_name[20] = "Relay_01";
+char ssid[20] = "SSID";
+char pass[20] = "PASSWORD";
+char host[20] = "HOST IP";
+char dev_name[20] = "DEVICE NAME";
 
 // char ssid[20] = "WBML_229_2.4G";
 // char pass[20] = "wbml0229";
