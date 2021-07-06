@@ -9,101 +9,127 @@
 #define SWITCH 12
 #define RELAY 13
 
-char ssid[21] = "WBML_229_2.4G";
-char pass[21] = "wbml0229";
+char ssid[20] = "WBML_229_2.4G";
+char pass[20] = "wbml0229";
+char host[20] = "192.168.0.9";
+char dev_name[20] = "Relay_01";
 
-char* host = "192.168.0.9";
-char* device = "Relay_01";
+// char ssid[20] = "WBML_229_2.4G";
+// char pass[20] = "wbml0229";
+// char host[20] = "192.168.0.9";
+// char dev_name[20] = "Relay_01";
 
-const char CONFIG_PAGE[] PROGMEM = R"=====(
+const char PAGE[] PROGMEM = R"=====(
 <!DOCTYPE html>
 <html>
 <body>
 <center>
-<style>
-.c{text-align:center;}div,
-input{padding:5px;font-size:1em;}input{width:60%;}
-body{text-align:center;font-family:verdana;}
-button{border:0;border-radius:0.3rem;background-color:#1fa3ec;color:#fff;line-height:2.4rem;font-size:1.2rem;width:60%}
-</style>
-<h1>WiFi LED on off demo: 1</h1><br>
-Ciclk to turn <a href="ledOn" target="myIframe">LED ON</a><br>
-Ciclk to turn <a href="ledOff" target="myIframe">LED OFF</a><br>
-<input id='s'name='s'length=20 placeholder='SSID'><br/>
-<input id='p'name='p'length=20 type='password'placeholder='password'><br/>
-<p>Button A</p>
-<a href=\"/A/0\">
-<button style=\"background-color:#12cb3d;\">ON</button></a></p>
-LED State:<iframe name="myIframe" width="100" height="25" frameBorder="0"><br>
+<h1>WiFi Relay Module Config Page</h1><br>
+<form method="post" action="/config">
+SSID <input type="text" name="ssid"><br>
+Password <input type="password" name="password"><br>
+Gateway IP <input type="text" name="gateway_ip"><br>
+Device Name <input type="text" name="device_name"><br>
+<button type="submit">SUBMIT</button>
+</form>
 </center>
-
 </body>
 </html>
 )=====";
 
-//Declare a global object variable from the ESP8266WebServer class.
 ESP8266WebServer server(80); //Server on port 80
 
 int sw_state = LOW;
 
-void handleRoot() {
-  Serial.println("You called root page");
-  String s = CONFIG_PAGE; //Read HTML contents
-  server.send(200, "text/html", s); //Send web page
+String eeprom_read_line(int position) { // line 20byte
+  char eeprom_data[20];
+  for (int i = 0; i < 20; i++) {
+    eeprom_data[i] = EEPROM.read(position + i);
+    Serial.print(eeprom_data[i]);
+  }
+  return eeprom_data;
 }
 
-String toStringIp(IPAddress ip) {  // 32비트 ip 주소를 스트링으로 변환하는 함수 
-  String res = "";
-  for (int i = 0; i < 3; i++) {
-    res += String((ip >> (8 * i)) & 0xFF) + ".";
+void eeprom_write_line(int position, String data_str) { // line 20byte
+  char eeprom_data[20];
+  strcpy(eeprom_data, data_str.c_str());
+  for (int i = 0; i < 20; i++) {
+    EEPROM.write(position + i, eeprom_data[i]);
+    EEPROM.commit();
   }
-  res += String(((ip >> 8 * 3)) & 0xFF);
-  return res;
+}
+
+void handleRoot() {
+  String page = PAGE;
+  server.send(200, "text/html", page);
+}
+
+void handleConfig() {
+  String input_ssid = server.arg("ssid");
+  String input_pass = server.arg("password");
+  String input_gateway_ip = server.arg("gateway_ip");
+  String input_device_name = server.arg("device_name");
+
+  eeprom_write_line(100, input_ssid);
+  eeprom_write_line(200, input_pass);
+  eeprom_write_line(300, input_gateway_ip);
+  eeprom_write_line(400, input_device_name);
+  
+  server.send(200, "text/html", "Config OK\nSSID : " + input_ssid + "\n" + 
+                    "PASS : " + input_pass + "\n" + 
+                    "HOST : " + input_gateway_ip + "\n" + 
+                    "DEVICE : " + input_device_name);
 }
 
 void setup() {
   Serial.begin(115200);
   Serial.println("WiFi_Relay_Board");
 
-  if(EEPROM.read(1023) != 1) {
-    EEPROM.write(1023, 1); // eeprom 저장 플래그 
+  EEPROM.begin(512);
+  
+  if (EEPROM.read(100) != 0) { // Data confirm
+    String ssid_str = eeprom_read_line(100);
+    String pass_str = eeprom_read_line(200);
+    String ip_str = eeprom_read_line(300);
+    String device_str = eeprom_read_line(400);
 
-  } else { 
-
+    strcpy(ssid, ssid_str.c_str());
+    strcpy(pass, pass_str.c_str());
+    strcpy(host, ip_str.c_str());
+    strcpy(dev_name, device_str.c_str());
   }
-
-
+  
   pinMode(SWITCH, INPUT);
   sw_state = digitalRead(SWITCH);
+  Serial.println(sw_state);
   
   if (sw_state) {
-    Serial.printf("Connecting to %s ", ssid);
+    Serial.print("Connecting to " + String(ssid));
     WiFi.begin(ssid, pass);
     while (WiFi.status() != WL_CONNECTED) {
       delay(500);
       Serial.print(".");
     }
     
-    //If connection successful show IP address in serial monitor
     Serial.println("");
     Serial.print("Connected to ");
     Serial.println(ssid);
     Serial.print("IP address: ");
-    Serial.println(WiFi.localIP());  //IP address assigned to your ESP
+    Serial.println(WiFi.localIP());
   } else {
     const char* ssid_ap = "iTACT_Module_01";
     const char* pass_ap = "";
     WiFi.softAP(ssid_ap, pass_ap);
     server.on("/", handleRoot);
-    server.begin();                  //Start server
+    server.on("/config", handleConfig);
+    server.begin(); // Start server
     Serial.print("AP Start");
 
-    //If connection successful show IP address in serial monitor
     Serial.println("");
     Serial.print("Connected to ");
     Serial.println(ssid);
     Serial.print("AP IP address: ");
-    Serial.println(WiFi.softAPIP());  //IP address assigned to your ESP
+    Serial.println(WiFi.softAPIP()); // AP IP
   }
 }
 
@@ -118,7 +144,7 @@ void loop() {
       Serial.println("[Sending a request]");
       client.print(String("GET /") + " data " + "\r\n" +
                   "Host: " + host + "\r\n" +
-                  "Device: " + device + "\r\n");
+                  "Device: " + dev_name + "\r\n");
 
       Serial.println("[Response:]");
       while (client.connected() || client.available()) {
@@ -136,6 +162,6 @@ void loop() {
     }
     delay(5000);
   } else {
-    server.handleClient();          //Handle client requests
+    server.handleClient(); //Handle client requests
   } 
 }
