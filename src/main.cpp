@@ -2,22 +2,19 @@
 
 #include <EEPROM.h>
 #include <ESP8266WiFi.h>
-//ESP Web Server Library to host a web page
 #include <ESP8266WebServer.h>
 
 #define LED 2
-#define SWITCH 12
-#define RELAY 13
+#define SWITCH 4
+#define RELAY_1 5
+#define RELAY_2 4
+#define RELAY_3 13
+#define RELAY_4 12
 
 char ssid[20] = "SSID";
 char pass[20] = "PASSWORD";
 char host[20] = "HOST IP";
 char dev_name[20] = "DEVICE NAME";
-
-// char ssid[20] = "WBML_229_2.4G";
-// char pass[20] = "wbml0229";
-// char host[20] = "192.168.0.9";
-// char dev_name[20] = "Relay_01";
 
 const char PAGE[] PROGMEM = R"=====(
 <!DOCTYPE html>
@@ -38,15 +35,17 @@ Device Name <input type="text" name="device_name"><br>
 )=====";
 
 ESP8266WebServer server(80); //Server on port 80
+WiFiClient client;
 
 int sw_state = LOW;
+boolean connect_flag = true;
 
 String eeprom_read_line(int position) { // line 20byte
   char eeprom_data[20];
   for (int i = 0; i < 20; i++) {
     eeprom_data[i] = EEPROM.read(position + i);
-    Serial.print(eeprom_data[i]);
   }
+  Serial.println(eeprom_data);
   return eeprom_data;
 }
 
@@ -86,31 +85,49 @@ void setup() {
   Serial.println("WiFi_Relay_Board");
 
   EEPROM.begin(512);
+  delay(200);
   
   if (EEPROM.read(100) != 0) { // Data confirm
     String ssid_str = eeprom_read_line(100);
     String pass_str = eeprom_read_line(200);
-    String ip_str = eeprom_read_line(300);
+    String gwip_str = eeprom_read_line(300);
     String device_str = eeprom_read_line(400);
 
     strcpy(ssid, ssid_str.c_str());
     strcpy(pass, pass_str.c_str());
-    strcpy(host, ip_str.c_str());
+    strcpy(host, gwip_str.c_str());
     strcpy(dev_name, device_str.c_str());
   }
+
+  delay(200);
   
   pinMode(SWITCH, INPUT);
-  sw_state = digitalRead(SWITCH);
-  Serial.println(sw_state);
+  pinMode(RELAY_1, OUTPUT);
+  digitalWrite(RELAY_1, HIGH);
+  pinMode(RELAY_2, OUTPUT);
+  digitalWrite(RELAY_2, HIGH);
+  pinMode(RELAY_3, OUTPUT);
+  digitalWrite(RELAY_3, HIGH);
+  pinMode(RELAY_4, OUTPUT);
+  digitalWrite(RELAY_4, HIGH);
+
+  // sw_state = digitalRead(SWITCH);
+  // Serial.println(sw_state);
   
-  if (sw_state) {
-    Serial.print("Connecting to " + String(ssid));
-    WiFi.begin(ssid, pass);
-    while (WiFi.status() != WL_CONNECTED) {
-      delay(500);
-      Serial.print(".");
+  delay(200);
+  int connect_cnt = 0;
+  Serial.print("Connecting to " + String(ssid));
+  WiFi.begin(ssid, pass);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+    connect_cnt++;
+    if (connect_cnt == 10) {
+      connect_flag = false;
     }
-    
+  }
+  
+  if (connect_flag) {
     Serial.println("");
     Serial.print("Connected to ");
     Serial.println(ssid);
@@ -133,30 +150,74 @@ void setup() {
   }
 }
 
-void loop() {
-  if (sw_state) {
-    WiFiClient client;
+void control_func(String split_data[], int split_cnt) {
+  int oper = 255;
+  if (split_data[1].indexOf("ON") > -1) {
+    oper = LOW;
+  } else if (split_data[1].indexOf("OFF") > -1) {
+    oper = HIGH;
+  }
 
+  int num = split_data[2].toInt();
+  if (num == 1) {
+    digitalWrite(RELAY_1, oper);
+    // Serial.println("RELAY_1 : " + split_data[1]);
+  } else if (num == 2) {
+    digitalWrite(RELAY_2, oper);
+    // Serial.println("RELAY_2 : " + split_data[1]);
+  } else if (num == 3) {
+    digitalWrite(RELAY_3, oper);
+    // Serial.println("RELAY_3 : " + split_data[1]);
+  } else if (num == 4) {
+    digitalWrite(RELAY_4, oper);
+    // Serial.println("RELAY_4 : " + split_data[1]);
+  }
+}
+
+void cmd_split(String line) {
+  int split_cnt = 0;
+  char line_data[20];
+  String split_data[10];
+
+  strcpy(line_data, line.c_str());
+  char* ptr = strtok(line_data, "_");
+  split_data[split_cnt] = ptr;
+  while (ptr != NULL) {
+    // Serial.println(split_data[split_cnt]);
+    ptr = strtok(NULL, "_");
+    split_cnt++;
+    split_data[split_cnt] = ptr;
+  }
+
+  String cmd = split_data[0];
+  if (cmd.indexOf("CONTROL") > -1) {
+    control_func(split_data, split_cnt);
+  } else if (cmd.indexOf("RESET") > -1) {
+
+  }
+}
+
+void loop() {
+  if (connect_flag) {
     Serial.printf("\n[Connecting to %s ... ", host);
     if (client.connect(host, 3333)) {
       Serial.println("connected]");
 
       Serial.println("[Sending a request]");
-      client.print(String("GET /") + " data " + "\r\n" +
-                  "Host: " + host + "\r\n" +
-                  "Device: " + dev_name + "\r\n");
+      client.print("Host: " + String(host) + "\r\n" +
+                   "Device: " + String(dev_name) + "\r\n");
 
-      Serial.println("[Response:]");
       while (client.connected() || client.available()) {
         if (client.available()) {
           String line = client.readStringUntil('\n');
+          Serial.print("[Response] : ");
           Serial.println(line);
+          cmd_split(line);
         }
       }
       client.stop();
       Serial.println("\n[Disconnected]");
-    }
-    else {
+    } else {
       Serial.println("connection failed!]");
       client.stop();
     }
