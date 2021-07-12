@@ -7,9 +7,10 @@
 #define LED 2
 #define SWITCH 4
 #define RELAY_1 5
-#define RELAY_2 4
+#define RELAY_2 12
 #define RELAY_3 13
-#define RELAY_4 12
+#define RELAY_4 14
+// or 10pin
 
 char ssid[20] = "SSID";
 char pass[20] = "PASSWORD";
@@ -29,6 +30,7 @@ Gateway IP <input type="text" name="gateway_ip"><br>
 Device Name <input type="text" name="device_name"><br>
 <button type="submit">SUBMIT</button>
 </form>
+<button type="button" action="/reset>RESET</button>
 </center>
 </body>
 </html>
@@ -54,8 +56,16 @@ void eeprom_write_line(int position, String data_str) { // line 20byte
   strcpy(eeprom_data, data_str.c_str());
   for (int i = 0; i < 20; i++) {
     EEPROM.write(position + i, eeprom_data[i]);
-    EEPROM.commit();
   }
+  EEPROM.commit();
+}
+
+void eeprom_reset() {
+  for (int i = 0; i < int(EEPROM.length()); i++) {
+    EEPROM.write(i, 0);
+  }
+  EEPROM.commit();
+  Serial.println("EEPROM RESET");
 }
 
 void handleRoot() {
@@ -80,11 +90,35 @@ void handleConfig() {
                     "DEVICE : " + input_device_name);
 }
 
+void handleReset() {
+  eeprom_reset();
+  server.send(200, "text/html", "Reset OK\n");
+}
+
 void setup() {
   Serial.begin(115200);
   Serial.println("WiFi_Relay_Board");
 
   EEPROM.begin(512);
+  delay(200);
+
+  pinMode(SWITCH, INPUT);
+  pinMode(RELAY_1, OUTPUT);
+  digitalWrite(RELAY_1, HIGH);
+  pinMode(RELAY_2, OUTPUT);
+  digitalWrite(RELAY_2, HIGH);
+  pinMode(RELAY_3, OUTPUT);
+  digitalWrite(RELAY_3, HIGH);
+  pinMode(RELAY_4, OUTPUT);
+  digitalWrite(RELAY_4, HIGH);
+
+  sw_state = digitalRead(SWITCH);
+  Serial.println(sw_state);
+
+  if (sw_state) {
+    handleReset();
+  }
+
   delay(200);
   
   if (EEPROM.read(100) != 0) { // Data confirm
@@ -99,20 +133,6 @@ void setup() {
     strcpy(dev_name, device_str.c_str());
   }
 
-  delay(200);
-  
-  pinMode(SWITCH, INPUT);
-  pinMode(RELAY_1, OUTPUT);
-  digitalWrite(RELAY_1, HIGH);
-  pinMode(RELAY_2, OUTPUT);
-  digitalWrite(RELAY_2, HIGH);
-  pinMode(RELAY_3, OUTPUT);
-  digitalWrite(RELAY_3, HIGH);
-  pinMode(RELAY_4, OUTPUT);
-  digitalWrite(RELAY_4, HIGH);
-
-  // sw_state = digitalRead(SWITCH);
-  // Serial.println(sw_state);
   
   delay(200);
   int connect_cnt = 0;
@@ -124,6 +144,7 @@ void setup() {
     connect_cnt++;
     if (connect_cnt == 10) {
       connect_flag = false;
+      break;
     }
   }
   
@@ -139,6 +160,7 @@ void setup() {
     WiFi.softAP(ssid_ap, pass_ap);
     server.on("/", handleRoot);
     server.on("/config", handleConfig);
+    server.on("/reset", handleConfig);
     server.begin(); // Start server
     Serial.print("AP Start");
 
