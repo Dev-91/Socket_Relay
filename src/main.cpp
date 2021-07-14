@@ -5,35 +5,99 @@
 #include <ESP8266WebServer.h>
 
 #define LED 2
-#define SWITCH 4
+#define BTN A0
 #define RELAY_1 5
 #define RELAY_2 12
 #define RELAY_3 13
 #define RELAY_4 14
-// or 10pin
+
 
 char ssid[20] = "SSID";
 char pass[20] = "PASSWORD";
 char host[20] = "HOST IP";
 char dev_name[20] = "DEVICE NAME";
 
-const char PAGE[] PROGMEM = R"=====(
-<!DOCTYPE html>
-<html>
+char PAGE_TEST_1[] = "Hi";
+char PAGE_TEST_2[] = "Bye";
+
+const char PAGE_HEAD[] PROGMEM = R"=====(
+<!DOCTYPE HTML>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no">
+    <title>WiFi Relay Module Config Page</title>
+</head>
+)=====";
+    
+const char PAGE_STYLE[] PROGMEM = R"=====(
+<style>
+
+    html,body{margin: 0; padding: 0; border: 0; font-size: 100%; font: inherit; vertical-align: baseline; width: 100%; height: 100%;}
+    .wrap{position: absolute; top: 50%; left: 50%; width: 300px; margin-left: -150px; margin-top: -150px;}
+    h1{text-align: center; margin-bottom: 30px;}
+    table{width: 300px; margin-bottom: 30px;}
+    tbody tr{height: 50px;}
+    tbody tr td{text-align: left; font-weight: 800;}
+    input{width: 166px; height: 20px; margin-left: 20px;}
+    button{width: 300px; height: 30px; margin-bottom: 30px; font-weight: 800;}
+    p{font-size: 12px; text-align: center;}
+</style>
+)=====";
+
+const char PAGE_BODY_TOP[] PROGMEM = R"=====(
 <body>
-<center>
-<h1>WiFi Relay Module Config Page</h1><br>
-<form method="post" action="/config">
-SSID <input type="text" name="ssid"><br>
-Password <input type="password" name="password"><br>
-Gateway IP <input type="text" name="gateway_ip"><br>
-Device Name <input type="text" name="device_name"><br>
-<button type="submit">SUBMIT</button>
-</form>
-<button type="button" action="/reset>RESET</button>
-</center>
+    
+    <div class="wrap">
+)=====";
+
+const char PAGE_BODY_BOTTOM[] PROGMEM = R"=====(
+            <p>Copyright © 2021 iTACT inc. All rights reserved.</p>
+        </form>
+    
+    </div>
+    
 </body>
 </html>
+)=====";
+
+
+const char PAGE_BODY_CONFIG[] PROGMEM = R"=====(
+        <h1>WiFi Relay Module Config Page</h1>
+        <form method="post" action="/config">
+        
+            <table>
+            
+                <tbody>
+                
+                    <tr><td>SSID</td><td><input type="text" name="ssid"></td></tr>
+                    <tr><td>Password</td><td><input type="password" name="password"></td></tr>
+                    <tr><td>Gateway IP</td><td><input type="text" name="gateway_ip"></td></tr>
+                    <tr><td>Device Name</td><td><input type="text" name="device_name"></td></tr>
+                
+                </tbody>
+                
+            </table>
+            
+            <button type="submit">SUBMIT</button>
+)=====";
+
+const char PAGE_BODY_CONFIRM_TOP[] PROGMEM = R"=====(
+<h1>Confirm Infomation</h1>
+        
+        
+        <table>
+
+            <tbody>
+
+)=====";
+
+const char PAGE_BODY_CONFIRM_BOTTOM[] PROGMEM = R"=====(
+            </tbody>
+
+        </table>
+
+        <button onclick="location.href='/config'">BACK</button>
 )=====";
 
 ESP8266WebServer server(80); //Server on port 80
@@ -61,19 +125,31 @@ void eeprom_write_line(int position, String data_str) { // line 20byte
 }
 
 void eeprom_reset() {
+  delay(500);
   for (int i = 0; i < int(EEPROM.length()); i++) {
     EEPROM.write(i, 0);
   }
   EEPROM.commit();
   Serial.println("EEPROM RESET");
+  delay(500);
 }
 
 void handleRoot() {
-  String page = PAGE;
+  String page;
+  page += PAGE_TEST_1;
+  page += PAGE_TEST_2;
+  // page += PAGE_HEAD;
+  // page += PAGE_STYLE;
+  // page += PAGE_BODY_TOP;
+  // page += PAGE_BODY_CONFIG;
+  // page += PAGE_BODY_BOTTOM;
+
   server.send(200, "text/html", page);
 }
 
-void handleConfig() {
+void handleConfirm() {
+
+  String page;
   String input_ssid = server.arg("ssid");
   String input_pass = server.arg("password");
   String input_gateway_ip = server.arg("gateway_ip");
@@ -83,26 +159,40 @@ void handleConfig() {
   eeprom_write_line(200, input_pass);
   eeprom_write_line(300, input_gateway_ip);
   eeprom_write_line(400, input_device_name);
+
+  // page += PAGE_HEAD;
+  // page += PAGE_STYLE;
+  // page += PAGE_BODY_TOP;
+  // page += PAGE_BODY_CONFIRM_TOP;
+  // page += "<tr><td>SSID</td><td>" + input_ssid + "</td></tr>";
+  // page += "<tr><td>Password</td><td>" + input_pass + "</td></tr>";
+  // page += "<tr><td>Gateway IP</td><td>" + input_gateway_ip + "</td></tr>";
+  // page += "<tr><td>Device Name</td><td>" + input_device_name + "</td></tr>";
+  // page += PAGE_BODY_CONFIRM_BOTTOM;
+  // page += PAGE_BODY_BOTTOM;
   
-  server.send(200, "text/html", "Config OK\nSSID : " + input_ssid + "\n" + 
-                    "PASS : " + input_pass + "\n" + 
-                    "HOST : " + input_gateway_ip + "\n" + 
-                    "DEVICE : " + input_device_name);
+  server.send(200, "text/html", page);
 }
 
-void handleReset() {
-  eeprom_reset();
-  server.send(200, "text/html", "Reset OK\n");
+void ledBlink(int cnt) {
+  for (int i = 0; i < cnt; i++) {
+    digitalWrite(LED, HIGH);
+    delay(100);
+    digitalWrite(LED, LOW);
+    delay(100);
+  }
 }
 
 void setup() {
+  ledBlink(5);
+
   Serial.begin(115200);
   Serial.println("WiFi_Relay_Board");
 
   EEPROM.begin(512);
   delay(200);
 
-  pinMode(SWITCH, INPUT);
+  pinMode(BTN, INPUT);
   pinMode(RELAY_1, OUTPUT);
   digitalWrite(RELAY_1, HIGH);
   pinMode(RELAY_2, OUTPUT);
@@ -112,11 +202,11 @@ void setup() {
   pinMode(RELAY_4, OUTPUT);
   digitalWrite(RELAY_4, HIGH);
 
-  sw_state = digitalRead(SWITCH);
-  Serial.println(sw_state);
+  sw_state = analogRead(BTN);
+  delay(100);
 
-  if (sw_state) {
-    handleReset();
+  if (sw_state > 900) {
+    eeprom_reset();
   }
 
   delay(200);
@@ -132,9 +222,8 @@ void setup() {
     strcpy(host, gwip_str.c_str());
     strcpy(dev_name, device_str.c_str());
   }
-
-  
   delay(200);
+
   int connect_cnt = 0;
   Serial.print("Connecting to " + String(ssid));
   WiFi.begin(ssid, pass);
@@ -147,7 +236,7 @@ void setup() {
       break;
     }
   }
-  
+
   if (connect_flag) {
     Serial.println("");
     Serial.print("Connected to ");
@@ -159,15 +248,12 @@ void setup() {
     const char* pass_ap = "";
     WiFi.softAP(ssid_ap, pass_ap);
     server.on("/", handleRoot);
-    server.on("/config", handleConfig);
-    server.on("/reset", handleConfig);
+    server.on("/config", handleConfirm);
     server.begin(); // Start server
-    Serial.print("AP Start");
-
-    Serial.println("");
-    Serial.print("Connected to ");
-    Serial.println(ssid);
+    Serial.println("\nAP Start");
     Serial.print("AP IP address: ");
+    Serial.println(ssid_ap);
+    Serial.println(pass_ap);
     Serial.println(WiFi.softAPIP()); // AP IP
   }
 }
