@@ -5,6 +5,7 @@
 #include <ESP8266WebServer.h>
 
 #define LED 2
+#define RANDOM_SEED 4
 #define BTN A0
 #define RESET 10
 #define RELAY_1 5
@@ -141,23 +142,31 @@ void eeprom_write_line(int position, String data_str) { // line 20byte
   EEPROM.commit();
 }
 
+void ledBlink(int cnt, int delay_time) {
+  for (int i = 0; i < cnt; i++) {
+    digitalWrite(LED, LOW);
+    delay(delay_time);
+    digitalWrite(LED, HIGH);
+    delay(delay_time);
+  }
+}
+
+void deviceReset() {
+    delay(1000);
+    ledBlink(10, 50);
+    delay(1000);
+    ESP.reset();  // ESP Reset
+}
+
 void eeprom_reset() {
   delay(500);
   for (int i = 0; i < int(EEPROM.length()); i++) {
     EEPROM.write(i, 0);
+    if (i % 2 == 0) ledBlink(1, 20);
   }
   EEPROM.commit();
   Serial.println("EEPROM RESET");
   delay(500);
-}
-
-void ledBlink(int cnt) {
-  for (int i = 0; i < cnt; i++) {
-    digitalWrite(LED, HIGH);
-    delay(100);
-    digitalWrite(LED, LOW);
-    delay(100);
-  }
 }
 
 void handleRoot() {
@@ -192,7 +201,7 @@ void handleConfirm() {
         input{width: 166px; height: 20px; margin-left: 20px;}
         button{width: 300px; height: 30px; margin-bottom: 30px; font-weight: 800;}
         p{font-size: 12px; text-align: center;}
-    </style>    
+    </style>
 
     <body>
         
@@ -235,7 +244,7 @@ void handleComplete() {
   String page = PAGE_COMPLETE;
   server.send(200, "text/html", page);
   delay(1000);
-  ledBlink(10);
+  ledBlink(10, 50);
   delay(1000);
   ESP.reset();  // ESP Reset
 }
@@ -248,6 +257,9 @@ void setup() {
   EEPROM.begin(512);
   delay(200);
 
+  int rs = ESP.random();
+  randomSeed(rs);
+  Serial.printf("Random Seed : %d\n", rs);
   pinMode(BTN, INPUT);
   pinMode(LED, OUTPUT);
   pinMode(RELAY_1, OUTPUT);
@@ -259,7 +271,7 @@ void setup() {
   pinMode(RELAY_4, OUTPUT);
   digitalWrite(RELAY_4, HIGH);
 
-  ledBlink(2);
+  ledBlink(5, 50);
 
   sw_state = analogRead(BTN);
   delay(200);
@@ -313,8 +325,9 @@ void setup() {
     Serial.println("\nAP Start");
     Serial.print("AP IP address: ");
     Serial.println(ssid_ap);
-    Serial.println(pass_ap);
+    // Serial.println(pass_ap);
     Serial.println(WiFi.softAPIP()); // AP IP
+    digitalWrite(LED, LOW);
   }
 }
 
@@ -361,15 +374,19 @@ void cmd_split(String line) {
   if (cmd.indexOf("CONTROL") > -1) {
     control_func(split_data, split_cnt);
   } else if (cmd.indexOf("RESET") > -1) {
-
+    deviceReset();
   }
 }
 
 void loop() {
   if (connect_flag) {
     Serial.printf("\n[Connecting to %s ... ", host);
+    int rt = random(0, 5000);
+    delay(rt);
     if (client.connect(host, 3333)) {
+      digitalWrite(LED, LOW);
       Serial.println("connected]");
+      Serial.printf("Random Delay : %dms\n", rt);
 
       Serial.println("[Sending a request]");
       client.print("Host: " + String(host) + "\r\n" +
@@ -377,16 +394,21 @@ void loop() {
 
       while (client.connected() || client.available()) {
         if (client.available()) {
+          ledBlink(2, 50);
           String line = client.readStringUntil('\n');
           Serial.print("[Response] : ");
           Serial.println(line);
           cmd_split(line);
+          digitalWrite(LED, LOW);
         }
       }
       client.stop();
       Serial.println("\n[Disconnected]");
+      digitalWrite(LED, HIGH);
     } else {
+      ledBlink(10, 25);
       Serial.println("connection failed!]");
+      Serial.printf("Random Delay : %dms\n", rt);
       client.stop();
     }
     delay(5000);
