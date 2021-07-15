@@ -6,6 +6,7 @@
 
 #define LED 2
 #define BTN A0
+#define RESET 10
 #define RELAY_1 5
 #define RELAY_2 12
 #define RELAY_3 13
@@ -20,7 +21,7 @@ char dev_name[20] = "DEVICE NAME";
 char PAGE_TEST_1[] = "Hi";
 char PAGE_TEST_2[] = "Bye";
 
-const char PAGE_HEAD[] PROGMEM = R"=====(
+const char PAGE_CONFIG[] PROGMEM = R"=====(
 <!DOCTYPE HTML>
 <html lang="ko">
 <head>
@@ -28,13 +29,11 @@ const char PAGE_HEAD[] PROGMEM = R"=====(
     <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no">
     <title>WiFi Relay Module Config Page</title>
 </head>
-)=====";
     
-const char PAGE_STYLE[] PROGMEM = R"=====(
 <style>
 
     html,body{margin: 0; padding: 0; border: 0; font-size: 100%; font: inherit; vertical-align: baseline; width: 100%; height: 100%;}
-    .wrap{position: absolute; top: 50%; left: 50%; width: 300px; margin-left: -150px; margin-top: -150px;}
+    .wrap{position: absolute; top: 50%; left: 50%; width: 300px; height:470px; margin-left: -150px; margin-top: -235px;}
     h1{text-align: center; margin-bottom: 30px;}
     table{width: 300px; margin-bottom: 30px;}
     tbody tr{height: 50px;}
@@ -42,29 +41,13 @@ const char PAGE_STYLE[] PROGMEM = R"=====(
     input{width: 166px; height: 20px; margin-left: 20px;}
     button{width: 300px; height: 30px; margin-bottom: 30px; font-weight: 800;}
     p{font-size: 12px; text-align: center;}
-</style>
-)=====";
+</style>    
 
-const char PAGE_BODY_TOP[] PROGMEM = R"=====(
 <body>
     
     <div class="wrap">
-)=====";
-
-const char PAGE_BODY_BOTTOM[] PROGMEM = R"=====(
-            <p>Copyright © 2021 iTACT inc. All rights reserved.</p>
-        </form>
-    
-    </div>
-    
-</body>
-</html>
-)=====";
-
-
-const char PAGE_BODY_CONFIG[] PROGMEM = R"=====(
         <h1>WiFi Relay Module Config Page</h1>
-        <form method="post" action="/config">
+        <form method="post" action="/confirm">
         
             <table>
             
@@ -80,31 +63,65 @@ const char PAGE_BODY_CONFIG[] PROGMEM = R"=====(
             </table>
             
             <button type="submit">SUBMIT</button>
+            
+            <p>Copyright © 2021 iTACT inc. All rights reserved.</p>
+        </form>
+    
+    </div>
+    
+</body>
+</html>
 )=====";
 
-const char PAGE_BODY_CONFIRM_TOP[] PROGMEM = R"=====(
-<h1>Confirm Infomation</h1>
-        
-        
-        <table>
+const char PAGE_COMPLETE[] PROGMEM = R"=====(
+<!DOCTYPE HTML>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no">
+    <title>WiFi Relay Module Config Page</title>
+</head>
+    
+<style>
 
-            <tbody>
+    html,body{margin: 0; padding: 0; border: 0; font-size: 100%; font: inherit; vertical-align: baseline; width: 100%; height: 100%;}
+    .wrap{position: absolute; top: 50%; left: 50%; width: 300px; height:470px; margin-left: -150px; margin-top: -235px;}
+    h1{text-align: center; margin-bottom: 30px;}
+    h2{text-align: center; font-size:16px;}
+    table{width: 300px; margin-bottom: 30px;}
+    tbody tr{height: 50px;}
+    tbody tr td{text-align: left; font-weight: 800;}
+    input{width: 166px; height: 20px; margin-left: 20px;}
+    button{width: 300px; height: 30px; margin-bottom: 30px; font-weight: 800;}
+    p{font-size: 12px; text-align: center;}
+</style>    
 
+<body>
+    
+    <div class="wrap">
+        <h1>Module Restart</h1>
+
+        <h2>모듈이 자동으로 재시작됩니다.</h2>
+          
+        <p>Copyright © 2021 iTACT inc. All rights reserved.</p>
+    
+    </div>
+    
+</body>
+</html>
 )=====";
 
-const char PAGE_BODY_CONFIRM_BOTTOM[] PROGMEM = R"=====(
-            </tbody>
-
-        </table>
-
-        <button onclick="location.href='/config'">BACK</button>
-)=====";
 
 ESP8266WebServer server(80); //Server on port 80
 WiFiClient client;
 
 int sw_state = LOW;
 boolean connect_flag = true;
+
+String input_ssid;
+String input_pass;
+String input_gateway_ip;
+String input_device_name;
 
 String eeprom_read_line(int position) { // line 20byte
   char eeprom_data[20];
@@ -134,46 +151,6 @@ void eeprom_reset() {
   delay(500);
 }
 
-void handleRoot() {
-  String page;
-  page += PAGE_TEST_1;
-  page += PAGE_TEST_2;
-  // page += PAGE_HEAD;
-  // page += PAGE_STYLE;
-  // page += PAGE_BODY_TOP;
-  // page += PAGE_BODY_CONFIG;
-  // page += PAGE_BODY_BOTTOM;
-
-  server.send(200, "text/html", page);
-}
-
-void handleConfirm() {
-
-  String page;
-  String input_ssid = server.arg("ssid");
-  String input_pass = server.arg("password");
-  String input_gateway_ip = server.arg("gateway_ip");
-  String input_device_name = server.arg("device_name");
-
-  eeprom_write_line(100, input_ssid);
-  eeprom_write_line(200, input_pass);
-  eeprom_write_line(300, input_gateway_ip);
-  eeprom_write_line(400, input_device_name);
-
-  // page += PAGE_HEAD;
-  // page += PAGE_STYLE;
-  // page += PAGE_BODY_TOP;
-  // page += PAGE_BODY_CONFIRM_TOP;
-  // page += "<tr><td>SSID</td><td>" + input_ssid + "</td></tr>";
-  // page += "<tr><td>Password</td><td>" + input_pass + "</td></tr>";
-  // page += "<tr><td>Gateway IP</td><td>" + input_gateway_ip + "</td></tr>";
-  // page += "<tr><td>Device Name</td><td>" + input_device_name + "</td></tr>";
-  // page += PAGE_BODY_CONFIRM_BOTTOM;
-  // page += PAGE_BODY_BOTTOM;
-  
-  server.send(200, "text/html", page);
-}
-
 void ledBlink(int cnt) {
   for (int i = 0; i < cnt; i++) {
     digitalWrite(LED, HIGH);
@@ -183,8 +160,87 @@ void ledBlink(int cnt) {
   }
 }
 
+void handleRoot() {
+  String page = PAGE_CONFIG;
+  server.send(200, "text/html", page);
+}
+
+void handleConfirm() {
+  input_ssid = server.arg("ssid");
+  input_pass = server.arg("password");
+  input_gateway_ip = server.arg("gateway_ip");
+  input_device_name = server.arg("device_name");
+  
+  String page;
+  page += R"=====(
+    <!DOCTYPE HTML>
+    <html lang="ko">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no">
+        <title>WiFi Relay Module Config Page</title>
+    </head>
+        
+    <style>
+
+        html,body{margin: 0; padding: 0; border: 0; font-size: 100%; font: inherit; vertical-align: baseline; width: 100%; height: 100%;}
+        .wrap{position: absolute; top: 50%; left: 50%; width: 300px; height:470px; margin-left: -150px; margin-top: -235px;}
+        h1{text-align: center; margin-bottom: 30px;}
+        table{width: 300px; margin-bottom: 30px;}
+        tbody tr{height: 50px;}
+        tbody tr td{text-align: left; font-weight: 800;}
+        input{width: 166px; height: 20px; margin-left: 20px;}
+        button{width: 300px; height: 30px; margin-bottom: 30px; font-weight: 800;}
+        p{font-size: 12px; text-align: center;}
+    </style>    
+
+    <body>
+        
+        <div class="wrap">
+            <h1>Confirm Infomation</h1>
+            
+            
+            <table>
+
+                <tbody>)=====";
+
+  page += "<tr><td>SSID</td><td>" + input_ssid + "</td></tr>";
+  page += "<tr><td>Password</td><td>" + input_pass + "</td></tr>";
+  page += "<tr><td>Gateway IP</td><td>" + input_gateway_ip + "</td></tr>";
+  page += "<tr><td>Device Name</td><td>" + input_device_name + "</td></tr>";
+  page += R"=====(
+                </tbody>
+
+            </table>
+
+            <button onclick="location.href='/complete'">OK</button>
+            <button onclick="location.href='/'">BACK</button>
+
+            <p>Copyright © 2021 iTACT inc. All rights reserved.</p>
+        
+        </div>
+        
+    </body>
+    </html>)=====";
+  
+  server.send(200, "text/html", page);
+}
+
+void handleComplete() {
+  eeprom_write_line(100, input_ssid);
+  eeprom_write_line(200, input_pass);
+  eeprom_write_line(300, input_gateway_ip);
+  eeprom_write_line(400, input_device_name);
+
+  String page = PAGE_COMPLETE;
+  server.send(200, "text/html", page);
+  delay(1000);
+  ledBlink(10);
+  delay(1000);
+  ESP.reset();  // ESP Reset
+}
+
 void setup() {
-  ledBlink(5);
 
   Serial.begin(115200);
   Serial.println("WiFi_Relay_Board");
@@ -193,6 +249,7 @@ void setup() {
   delay(200);
 
   pinMode(BTN, INPUT);
+  pinMode(LED, OUTPUT);
   pinMode(RELAY_1, OUTPUT);
   digitalWrite(RELAY_1, HIGH);
   pinMode(RELAY_2, OUTPUT);
@@ -202,8 +259,10 @@ void setup() {
   pinMode(RELAY_4, OUTPUT);
   digitalWrite(RELAY_4, HIGH);
 
+  ledBlink(2);
+
   sw_state = analogRead(BTN);
-  delay(100);
+  delay(200);
 
   if (sw_state > 900) {
     eeprom_reset();
@@ -248,7 +307,8 @@ void setup() {
     const char* pass_ap = "";
     WiFi.softAP(ssid_ap, pass_ap);
     server.on("/", handleRoot);
-    server.on("/config", handleConfirm);
+    server.on("/confirm", handleConfirm);
+    server.on("/complete", handleComplete);
     server.begin(); // Start server
     Serial.println("\nAP Start");
     Serial.print("AP IP address: ");
