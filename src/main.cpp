@@ -1,13 +1,12 @@
 #include <Arduino.h>
+#include <pitches.h>
 
 #include <EEPROM.h>
 #include <ESP8266WiFi.h>
 #include <ESP8266WebServer.h>
 
 #define LED 2
-#define RANDOM_SEED 4
 #define BTN A0
-#define RESET 10
 #define RELAY_1 5
 #define RELAY_2 12
 #define RELAY_3 13
@@ -260,8 +259,9 @@ void setup() {
   int rs = ESP.random();
   randomSeed(rs);
   Serial.printf("Random Seed : %d\n", rs);
-  pinMode(BTN, INPUT);
   pinMode(LED, OUTPUT);
+  digitalWrite(LED, HIGH);
+  pinMode(BTN, INPUT);
   pinMode(RELAY_1, OUTPUT);
   digitalWrite(RELAY_1, HIGH);
   pinMode(RELAY_2, OUTPUT);
@@ -270,8 +270,6 @@ void setup() {
   digitalWrite(RELAY_3, HIGH);
   pinMode(RELAY_4, OUTPUT);
   digitalWrite(RELAY_4, HIGH);
-
-  ledBlink(5, 50);
 
   sw_state = analogRead(BTN);
   delay(200);
