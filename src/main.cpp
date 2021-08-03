@@ -12,6 +12,7 @@
 #define RELAY_3 13
 #define RELAY_4 14
 
+int connect_cnt = 0;
 
 char ssid[20] = "SSID";
 char pass[20] = "PASSWORD";
@@ -271,6 +272,18 @@ void setup() {
   pinMode(RELAY_4, OUTPUT);
   digitalWrite(RELAY_4, HIGH);
 
+  // Serial.printf("RELAY_1 OFF");
+  // digitalWrite(RELAY_1, HIGH);
+  // delay(1000);
+  // Serial.printf("RELAY_1 ON");
+  // digitalWrite(RELAY_1, LOW);
+  // delay(1000);
+  // Serial.printf("RELAY_1 OFF");
+  // digitalWrite(RELAY_1, HIGH);
+  // delay(1000);
+
+  ledBlink(10, 50);
+
   sw_state = analogRead(BTN);
   delay(200);
 
@@ -382,6 +395,7 @@ void loop() {
     int rt = random(0, 5000);
     delay(rt);
     if (client.connect(host, 3333)) {
+      connect_cnt = 0;
       digitalWrite(LED, LOW);
       Serial.println("connected]");
       Serial.printf("Random Delay : %dms\n", rt);
@@ -408,6 +422,14 @@ void loop() {
       Serial.println("connection failed!]");
       Serial.printf("Random Delay : %dms\n", rt);
       client.stop();
+      connect_cnt++;
+      if (connect_cnt > 10) {
+        Serial.println("The connection to the server has been lost.");
+        digitalWrite(RELAY_1, HIGH);
+        digitalWrite(RELAY_2, HIGH);
+        digitalWrite(RELAY_3, HIGH);
+        digitalWrite(RELAY_4, HIGH);
+      }
     }
     delay(5000);
   } else {
